@@ -1,5 +1,6 @@
 from Parameters import *
 import numpy as np
+from tqdm import tqdm
 from sklearn.svm import LinearSVC
 import matplotlib.pyplot as plt
 import glob
@@ -32,8 +33,18 @@ class FacialDetector:
         for i in range(num_images):
             print('Procesam exemplul pozitiv numarul %d...' % i)
             img = cv.imread(files[i], cv.IMREAD_GRAYSCALE)
-            # TODO: completati codul functiei in continuare
+            if self.params.use_flip_images:
+                img_flip = cv.flip(img, 1)
+                descriptor_flip = hog(img_flip,
+                                      pixels_per_cell=(self.params.dim_hog_cell, self.params.dim_hog_cell),
+                                      cells_per_block=(2, 2))
+                positive_descriptors.append(descriptor_flip)
+            descriptor_img = hog(img,
+                                 pixels_per_cell=(self.params.dim_hog_cell, self.params.dim_hog_cell),
+                                 cells_per_block=(2, 2))
 
+            positive_descriptors.append(descriptor_img)
+            print("Am extras descriptorul pentru imagine ", i, " care are dimensiunea de ", descriptor_img.shape)
 
         positive_descriptors = np.array(positive_descriptors)
         return positive_descriptors
@@ -56,8 +67,25 @@ class FacialDetector:
         for i in range(num_images):
             print('Procesam exemplul negativ numarul %d...' % i)
             img = cv.imread(files[i], cv.IMREAD_GRAYSCALE)
-            # TODO: completati codul functiei in continuare
 
+            H, W = img.shape # extrag dimensiunile imaginii
+
+            # xmin si ymin vor lua valori intre 0 si H - 36 respectiv 0 si W - 36
+            xmin = np.random.randint(0, H - self.params.dim_window, size=num_negative_per_image)
+            ymin = np.random.randint(0, W - self.params.dim_window, size=num_negative_per_image)
+
+            xmax = xmin + self.params.dim_window
+            ymax = ymin + self.params.dim_window
+
+            # pentru fiecare set de valori pe care le-am generat
+            for i in range(num_negative_per_image):
+
+                # extrag fereastra 'aleatoare'
+                window = img[xmin[i]: xmax[i], ymin[i]: ymax[i]]
+                descriptor_window = hog(window,
+                                        pixels_per_cell=(self.params.dim_hog_cell, self.params.dim_hog_cell),
+                                        cells_per_block=(2, 2))
+                negative_descriptors.append(descriptor_window) # adaug descriptorul in lista
 
         negative_descriptors = np.array(negative_descriptors)
         return negative_descriptors
@@ -73,7 +101,7 @@ class FacialDetector:
         best_accuracy = 0
         best_c = 0
         best_model = None
-        Cs = [10 ** -5, 10 ** -4,  10 ** -3,  10 ** -2, 10 ** -1, 10 ** 0]
+        Cs = [10 ** -5, 10 ** -4,  10 ** -3,  10 ** -2, 10 ** -1, 10 ** 0, 10, 100]
         for c in Cs:
             print('Antrenam un clasificator pentru c=%f' % c)
             model = LinearSVC(C=c)
@@ -145,7 +173,7 @@ class FacialDetector:
         sorted_scores = image_scores[sorted_indices]
 
         is_maximal = np.ones(len(image_detections)).astype(bool)
-        iou_threshold = 0.3
+        iou_threshold = 0.05
         for i in range(len(sorted_image_detections) - 1):
             if is_maximal[i] == True: # don't change to 'is True' because is a numpy True and is not a python True :)
                 for j in range(i + 1, len(sorted_image_detections)):
@@ -177,30 +205,63 @@ class FacialDetector:
         file_names: numpy array de dimensiune N, pentru fiecare detectie trebuie sa salvam numele imaginii.
         (doar numele, nu toata calea).
         """
-
-        test_images_path = os.path.join(self.params.dir_test_examples, '*.jpg')
+        if return_descriptors:
+            test_images_path = os.path.join(self.params.dir_neg_examples, '*.jpg')
+        else:
+            test_images_path = os.path.join(self.params.dir_test_examples, '*.jpg')
         test_files = glob.glob(test_images_path)
-        detections = None  # array cu toate detectiile pe care le obtinem
+        detections = np.empty((0, 4))  # array cu toate detectiile pe care le obtinem
         scores = np.array([])  # array cu toate scorurile pe care le optinem
         file_names = np.array([])  # array cu fisiele, in aceasta lista fisierele vor aparea de mai multe ori, pentru fiecare
-        # detectie din imagine, numele imaginii va aparea in aceasta lista
-        w = self.best_model.coef_.T
+                                   # detectie din imagine, numele imaginii va aparea in aceasta lista
+        w = np.squeeze(self.best_model.coef_.T)
         bias = self.best_model.intercept_[0]
         num_test_images = len(test_files)
         descriptors_to_return = []
         for i in range(num_test_images):
             start_time = timeit.default_timer()
-            print('Procesam imaginea de testare %d/%d..' % (i, num_test_images))
-            img = cv.imread(test_files[i], cv.IMREAD_GRAYSCALE)
-            # TODO: completati codul functiei in continuare
+            image_name = ntpath.basename(test_files[i])
+            print('Procesam imaginea de testare %s, %d/%d..' % (image_name, i, num_test_images))
+            image = cv.imread(test_files[i], cv.IMREAD_GRAYSCALE)
+            height, width = image.shape # extrag dimensiunile imaginii
+            image_detections = np.empty((0, 4))
+            image_scores = np.array([])
+            if self.params.use_scaling == True:
+                scales = np.linspace(0.05, self.params.scaling_ratio, int(self.params.scaling_ratio/0.1/2))
+            else:
+                scales = [1]
+            for scale in scales:
+                H = int(height * scale)
+                W = int(width * scale)
+                img = cv.resize(image, (W, H), interpolation = cv.INTER_AREA)
+                for xmin in tqdm(range(0, H - self.params.dim_window, self.params.dim_hog_cell)): # linia
+                    for ymin in range(0, W - self.params.dim_window, self.params.dim_hog_cell): # coloana
+                        ymax = ymin + self.params.dim_window
+                        xmax = xmin + self.params.dim_window
 
-
+                        window_descriptor = hog(img[xmin: xmax, ymin: ymax],
+                                                pixels_per_cell=(self.params.dim_hog_cell, self.params.dim_hog_cell),
+                                                cells_per_block=(2, 2))
+                        score = np.dot(w, window_descriptor) + bias
+                        if score > self.params.threshold:
+                            if return_descriptors:
+                                descriptors_to_return.append(window_descriptor)
+                            else:
+                                image_scores = np.append(image_scores, score)
+                                image_detections = np.append(image_detections, np.array([[ymin, xmin, ymax, xmax]]) *
+                                                             (1/scale), axis=0)
+                # print("Dimensiunile arrayului de detectii este ", image_detections.shape)
+            if not return_descriptors:
+                image_detections, image_scores = self.non_maximum_suppression(image_detections, image_scores, (height, width))
+                detections = np.append(detections, np.array(image_detections), axis=0)
+                scores = np.append(scores, image_scores)
+                file_names = np.append(file_names, np.array([image_name]*len(image_scores)))
             end_time = timeit.default_timer()
             print('Timpul de procesarea al imaginii de testare %d/%d este %f sec.'
                   % (i, num_test_images, end_time - start_time))
 
         if return_descriptors:
-            return descriptors_to_return
+            return np.array(descriptors_to_return)
         return detections, scores, file_names
 
     def compute_average_precision(self, rec, prec):

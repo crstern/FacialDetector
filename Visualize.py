@@ -27,8 +27,8 @@ def show_detections_without_ground_truth(detections, scores, file_names, params:
         current_scores = scores[indices_detections_current_image]
 
         for idx, detection in enumerate(current_detections):
-            cv.rectangle(image, (detection[0], detection[1]), (detection[2], detection[3]), (0, 0, 255), thickness=1)
-            cv.putText(image, 'score:' + str(current_scores[idx])[:4], (detection[0], detection[1]),
+            cv.rectangle(image, (int(detection[0]), int(detection[1])), (int(detection[2]), int(detection[3])), (0, 0, 255), thickness=1)
+            cv.putText(image, 'score:' + str(current_scores[idx])[:4], (int(detection[0]), int(detection[1])),
                        cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         cv.imwrite(os.path.join(params.dir_save_files, "detections_" + short_file_name), image)
         print('Apasa orice tasta pentru a continua...')
@@ -56,10 +56,12 @@ def show_detections_with_ground_truth(detections, scores, file_names, params: Pa
         indices_detections_current_image = np.where(file_names == short_file_name)
         current_detections = detections[indices_detections_current_image]
         current_scores = scores[indices_detections_current_image]
-
         for idx, detection in enumerate(current_detections):
-            cv.rectangle(image, (detection[0], detection[1]), (detection[2], detection[3]), (0, 0, 255), thickness=1)
-            cv.putText(image, 'score:' + str(current_scores[idx])[:4], (detection[0], detection[1]),
+            start_point = (int(detection[0]), int(detection[1]))
+            end_point = (int(detection[2]), int(detection[3]))
+            color = (0, 0, 255)
+            cv.rectangle(image, start_point, end_point, color, 1)
+            cv.putText(image, 'score:' + str(current_scores[idx])[:4], start_point,
                        cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         annotations = ground_truth_bboxes[ground_truth_bboxes[:, 0] == short_file_name]
 

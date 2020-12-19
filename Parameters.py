@@ -5,7 +5,7 @@ class Parameters:
         self.base_dir = '../data'
         self.dir_pos_examples = os.path.join(self.base_dir, 'exemplePozitive')
         self.dir_neg_examples = os.path.join(self.base_dir, 'exempleNegative')
-        self.dir_test_examples = os.path.join(self.base_dir, 'exempleTest/CMU+MIT') # 'exempleTest/CursVA'   'exempleTest/CMU+MIT'
+        self.dir_test_examples = os.path.join(self.base_dir, 'exempleTest/CMU+MIT') # 'exempleTest/CursVA'   'exempleTest/CMU+MIT'  'MyExamples'
         self.path_annotations = os.path.join(self.base_dir, 'exempleTest/CMU+MIT_adnotari/ground_truth_bboxes.txt')
         self.dir_save_files = os.path.join(self.base_dir, 'salveazaFisiere')
         if not os.path.exists(self.dir_save_files):
@@ -21,9 +21,10 @@ class Parameters:
         self.overlap = 0.3
         self.number_positive_examples = 6713  # numarul exemplelor pozitive
         self.number_negative_examples = 10000  # numarul exemplelor negative
-        self.threshold = 0  # toate ferestrele cu scorul > threshold si maxime locale devin detectii
-        self.has_annotations = False
+        self.threshold = 3.5  # toate ferestrele cu scorul > threshold si maxime locale devin detectii
+        self.has_annotations = True
+        self.use_scaling = False
 
-        self.scaling_ratio = 0.9
+        self.scaling_ratio = 1.0
         self.use_hard_mining = False  # (optional)antrenare cu exemple puternic negative
         self.use_flip_images = False  # adauga imaginile cu fete oglindite
